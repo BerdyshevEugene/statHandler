@@ -1,0 +1,48 @@
+[project]
+name = "statHandler"
+version = "0.1.0"
+description = "Инструмент для автоматизированной обработки статистики из RabbitMQ и сохранения в Excel."
+authors = [
+    { name = "Berdyshev E.A.", email = "" }
+]
+license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = ">=3.11"
+
+dependencies = [
+    "aio-pika==9.5.5",
+    "aiormq==6.8.1",
+    "cffi==1.17.1",
+    "colorama==0.4.6",
+    "cryptography==45.0.4",
+    "et-xmlfile==2.0.0",
+    "exceptiongroup==1.3.0",
+    "idna==3.10",
+    "loguru==0.7.3",
+    "mouseinfo==0.1.3",
+    "multidict==6.6.3",
+    "openpyxl==3.1.5",
+    "pamqp==3.3.0",
+    "pillow==11.3.0",
+    "propcache==0.3.2",
+    "pyautogui==0.9.54",
+    "pycparser==2.22",
+    "pygetwindow==0.0.9",
+    "pymsgbox==1.0.9",
+    "pyperclip==1.9.0",
+    "pyrect==0.2.0",
+    "pyscreeze==1.0.1",
+    "pyspnego==0.11.2",
+    "python-dotenv==1.1.1",
+    "pytweening==1.2.0",
+    "smbprotocol==1.15.0",
+    "sspilib==0.3.1",
+    "typing-extensions==4.14.0",
+    "win32-setctime==1.2.0",
+    "yarl==1.20.1"
+]
+[tool.ruff]
+exclude = [
+  "path/to/tensorflow/**",
+  "some/other/path/**"
+]
