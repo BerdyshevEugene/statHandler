@@ -44,7 +44,6 @@ RUN chmod +x /app/entrypoint.sh
 # ======================
 # RUNTIME CONFIGURATION
 # ======================
-# Expose the port Django runs on
 EXPOSE 8001
 
 # Launches the application through a script entrypoint.sh

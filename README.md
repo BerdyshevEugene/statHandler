@@ -80,16 +80,6 @@ statHandler/
 
 ---
 
-## Компиляция в исполняемый файл
-
-Для сборки standalone-скрипта используйте [PyInstaller](https://pyinstaller.org/):
-
-```bash
-pyinstaller main.py --onefile --copy-metadata aio-pika --copy-metadata pamqp --copy-metadata yarl
-```
-
----
-
 ## Для разработчиков
 
 ### Использование UV
@@ -144,6 +134,12 @@ uv run <COMMAND>
 uvx ruff
 uvx ruff check .
 ```
+
+```bash
+docker-compose build --no-cache
+docker-compose up
+```
+
 </details>
 
 ---
