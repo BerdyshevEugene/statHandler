@@ -1,6 +1,9 @@
 # statHandler
 
 [![Ruff](https://github.com/BerdyshevEugene/statHandler/actions/workflows/ruff.yml/badge.svg?cache=buster)](https://github.com/BerdyshevEugene/statHandler/actions/workflows/ruff.yml)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue?logo=python)
+![Docker](https://img.shields.io/badge/docker-ready-blue?logo=docker)
+![UV](https://img.shields.io/badge/uv-supported-6E40C9?logo=python)
 
 ---
 
@@ -20,10 +23,11 @@
 2. **Установите Python 3.11+**
 3. **Создайте файл `.env` в корне проекта:**
    ```env
-   EXCEL_PATH=/path/to/report.xlsx
+   EXCEL_PATH=./data/report.xlsx
    RABBITMQ_URL=amqp://guest:guest@localhost/
    STATSCRAPER=statScraper
    ```
+   > **Важно:** Убедитесь, что папка `data/` существует, иначе создайте её вручную.
 4. **Установите зависимости:**
    ```bash
    uv venv .venv
@@ -135,11 +139,29 @@ uvx ruff
 uvx ruff check .
 ```
 
+**Проверка и запуск в Docker:**
 ```bash
 docker-compose build --no-cache
 docker-compose up
 ```
 
+</details>
+
+### Docker
+
+<details>
+<summary>🐳 Быстрый старт с Docker</summary>
+
+**Сборка и запуск контейнера:**
+```bash
+docker build -t stathandler .
+docker run --env-file .env -v $(pwd)/data:/app/data stathandler
+```
+
+**Использование docker-compose:**
+```bash
+docker-compose up --build
+```
 </details>
 
 ---
