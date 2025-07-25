@@ -10,6 +10,11 @@ if not EXCEL_PATH:
     raise ValueError(
         "EXCEL_PATH не задан! Укажите путь к Excel-файлу через переменную окружения или .env"
     )
+EXCEL_PATH_LAST_YEAR = os.getenv("EXCEL_PATH_LAST_YEAR", "/default/path/to/report.xlsx")
+if not EXCEL_PATH:
+    raise ValueError(
+        "EXCEL_PATH за прошлый год не задан! Укажите путь к Excel-файлу через переменную окружения или .env"
+    )
 RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost/")
 QUEUE_NAME = os.getenv("STATSCRAPER", "statScraper")
 

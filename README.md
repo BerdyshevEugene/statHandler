@@ -51,7 +51,8 @@ statHandler/
 ├── app/
 │   ├── config.py            # настройки (пути, переменные окружения)
 │   ├── excel_processor.py   # обработка и запись данных в Excel
-│   └── mq_consumer.py       # приём сообщений из RabbitMQ
+│   ├── mq_consumer.py       # приём сообщений из RabbitMQ
+│   └── send_email.py        # отправка сообщений на почту
 │
 ├── main.py                  # точка входа
 │

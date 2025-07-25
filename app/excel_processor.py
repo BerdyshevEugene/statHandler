@@ -1,9 +1,13 @@
 import openpyxl
+import os
 
 from datetime import datetime
+from datetime import timedelta
 from openpyxl.utils import get_column_letter
+import math
 
 from app.config import (
+    EXCEL_PATH_LAST_YEAR,
     CITY_ORDER,
     CITY_MAPPING,
     MONTH_NAMES,
@@ -17,7 +21,9 @@ from app.config import (
     DATA_ALIGNMENT,
     THICK_BORDER,
 )
+from app.send_email import send_email_with_attachment
 from logger.logger import setup_logger
+from openpyxl.styles import Font, PatternFill
 
 logger = setup_logger(module_name=__name__)
 
@@ -116,9 +122,129 @@ class ExcelProcessor:
         if index in [4, 5, 6]:
             cell.value = f"{value} сек."
         elif index == 7:
-            cell.value = f"{value:.2f}%".replace(".", ",")
+            try:
+                num = float(value)
+                if num == int(num):
+                    cell.value = f"{int(num)}%"
+                else:
+                    cell.value = f"{num:.1f}%".replace(".", ",")
+            except (ValueError, TypeError):
+                cell.value = value
         else:
             cell.value = value
+
+    def get_previous_year_same_weekday(self, date):
+        prev_year_date = date.replace(year=date.year - 1)
+        while prev_year_date.weekday() != date.weekday():
+            prev_year_date += timedelta(days=1)
+        return prev_year_date
+
+    def get_month_name(self, month):
+        return MONTH_NAMES[month]
+
+    def insert_previous_year_block(self, ws, data_row, date):
+        logger.info(
+            f"[prev] starting insertion of previous year block for date: {date}"
+        )
+        prev_date = self.get_previous_year_same_weekday(date)
+        prev_file = EXCEL_PATH_LAST_YEAR
+        logger.info(f"[prev] prev year file: {prev_file}, date: {prev_date}")
+        if not os.path.exists(prev_file):
+            logger.warning(f"[prev] previous year file not found: {prev_file}")
+            return
+        prev_wb = openpyxl.load_workbook(prev_file)
+        prev_wb_values = openpyxl.load_workbook(prev_file, data_only=True)
+        prev_sheet_name = (
+            self.get_month_name(prev_date.month) + " " + str(prev_date.year)
+        )
+        logger.info(f"[prev] prev year sheet: {prev_sheet_name}")
+        if prev_sheet_name not in prev_wb.sheetnames:
+            logger.warning(
+                f"[prev] sheet {prev_sheet_name} not found in previous year file"
+            )
+            return
+        prev_ws = prev_wb[prev_sheet_name]
+        prev_ws_values = prev_wb_values[prev_sheet_name]
+        prev_data_row = self.find_data_section(prev_ws, prev_date)
+        logger.info(f"[prev] prev year data row: {prev_data_row}")
+        if not prev_data_row:
+            logger.warning(
+                f"[prev] section for date {prev_date} not found in previous year file"
+            )
+            return
+        # Определяем конец секции: первая полностью пустая строка после prev_data_row
+        start_row = prev_data_row
+        end_row = start_row
+        while True:
+            if all(
+                prev_ws.cell(row=end_row, column=col).value in (None, "")
+                for col in range(1, 7)
+            ):
+                logger.info(f"[prev] prev year section end at row: {end_row}")
+                break
+            end_row += 1
+        ws.append([])
+        logger.info(f"[prev] copying rows: {start_row}-{end_row - 1}")
+        for src_row in range(start_row, end_row):
+            values = []
+            for col in range(1, 7):
+                cell = prev_ws.cell(row=src_row, column=col)
+                cell_value = cell.value
+                if cell.data_type == "f":
+                    cell_value = prev_ws_values.cell(row=src_row, column=col).value
+                values.append(cell_value)
+            logger.info(f"[prev] inserting row: {values}")
+            ws.append(values)
+            for col in range(1, 7):
+                cell = ws.cell(row=ws.max_row, column=col)
+                if src_row == start_row:
+                    cell.fill = HEADER_FILL
+                    cell.font = HEADER_FONT
+                    cell.alignment = HEADER_ALIGNMENT
+                elif col == 1:
+                    cell.fill = METRIC_FILL
+                    cell.font = Font(bold=False)
+                    cell.alignment = METRIC_ALIGNMENT
+                else:
+                    cell.fill = PatternFill(fill_type=None)
+                    cell.font = Font(bold=False)
+                    cell.alignment = DATA_ALIGNMENT
+                cell.border = THICK_BORDER
+                if (
+                    col != 1
+                    and "% потерь"
+                    in str(ws.cell(row=ws.max_row, column=1).value).lower()
+                ):
+                    val = cell.value
+                    try:
+                        num = float(val) * 100
+                        if num == int(num):
+                            cell.value = f"{int(num)}%"
+                        else:
+                            cell.value = (
+                                f"{num:.1f}".replace(".", ",").rstrip("0").rstrip(",")
+                                + "%"
+                            )
+                    except (ValueError, TypeError):
+                        pass
+        self.wb.save(self.file_path)
+        logger.success("excel was saved after inserting previous year block")
+        subject = f"Отчет с данными за {date.strftime('%d.%m.%Y')}"
+        body = f"Добавлены данные за прошлый год для даты {date.strftime('%d.%m.%Y')}.\nФайл во вложении."
+        send_email_with_attachment(subject, body, self.file_path)
+
+    def check_all_cities_filled(self, ws, data_row):
+        for col in range(2, 7):
+            all_metrics_filled = True
+            for i in range(1, len(HEADERS) + 1):
+                if ws.cell(row=data_row + i, column=col).value is None:
+                    all_metrics_filled = False
+                    break
+
+            if not all_metrics_filled:
+                return False
+
+        return True
 
     def process_message(self, data: dict):
         try:
@@ -136,9 +262,12 @@ class ExcelProcessor:
                 int(data["Потеряно:"]),
                 int(data["Переведено:"]),
                 int(data["Успешно завершено:"]),
-                int(data["Клиенты, не дождавшиеся ответа, ждали в среднем:"]),
-                round(float(data["В среднем клиенты ждут:"])),
-                round(float(data["В среднем разговор длится:"])),
+                math.floor(
+                    float(data["Клиенты, не дождавшиеся ответа, ждали в среднем:"])
+                    + 0.5
+                ),
+                math.floor(float(data["В среднем клиенты ждут:"]) + 0.5),
+                math.floor(float(data["В среднем разговор длится:"]) + 0.5),
                 round((int(data["Потеряно:"]) / int(data["ВСЕГО:"])) * 100, 1)
                 if int(data["ВСЕГО:"]) > 0
                 else 0,
@@ -157,14 +286,14 @@ class ExcelProcessor:
             data_row = self.find_data_section(ws, date)
 
             if data_row is None:
-                logger.info(f"⚠️ date {date_str} not fund, create new section")
+                logger.info(f"⚠️ date {date_str} not found, create new section")
                 data_row = self.create_new_data_section(ws, date)
                 logger.success(f"✅ new section created at row: {data_row}")
 
             city_col = self.get_city_column(ws, data_row, city_name)
 
             if not city_col:
-                logger.warning(f"⚠️ col for city '{city_name}' not found, add new")
+                logger.warning(f"⚠️ col for city '{city_name}' not found, adding new")
                 # ищем последний занятый столбец в строке с датой
                 last_col = 1
                 for col in range(2, ws.max_column + 1):
@@ -189,10 +318,50 @@ class ExcelProcessor:
                 self.format_data_cell(cell, value, i)
 
             logger.success(
-                f"✅ data was add {get_column_letter(city_col)}{start_row + i}"
+                f"✅ data has been added {get_column_letter(city_col)}{start_row + i}"
             )
             self.wb.save(self.file_path)
-            logger.success("💾 Excel was saved")
+            logger.success("💾 excel was saved")
+
+            if self.check_all_cities_filled(ws, data_row):
+                logger.info("all cities (B-F) filled for current date")
+
+                prev_date = self.get_previous_year_same_weekday(date)
+                prev_date_str = prev_date.strftime("%d.%m.%Y")
+                weekday = WEEKDAYS[prev_date.weekday()]
+                expected_header = f"{prev_date_str} ({weekday})"
+
+                current_section_end = data_row + len(HEADERS)
+                next_block_row = None
+
+                for row in range(current_section_end + 1, ws.max_row + 1):
+                    if ws.cell(row=row, column=1).value is not None:
+                        next_block_row = row
+                        break
+
+                block_exists = False
+                if next_block_row:
+                    next_block_value = ws.cell(row=next_block_row, column=1).value
+                    if next_block_value == expected_header:
+                        block_exists = True
+                        logger.info(
+                            f"previous year block found at row {next_block_row}: {next_block_value}"
+                        )
+
+                if not block_exists:
+                    logger.info("inserting previous year block")
+                    self.insert_previous_year_block(ws, data_row, date)
+                else:
+                    logger.info(
+                        "previous year block already exists, sending email anyway"
+                    )
+                    subject = f"Отчет с данными за {date.strftime('%d.%m.%Y')}"
+                    body = f"Все данные заполнены для даты {date.strftime('%d.%m.%Y')}.\nФайл во вложении."
+                    send_email_with_attachment(subject, body, self.file_path)
+            else:
+                logger.info(
+                    "not all cities (B-F) filled yet, skipping previous year block"
+                )
 
         except Exception as e:
             logger.error(f"❌ error: {str(e)}")
